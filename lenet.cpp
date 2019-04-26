@@ -134,6 +134,9 @@ DEFINE_double(learning_rate, 0.01, "Base learning rate");
 DEFINE_double(lr_gamma, 0.0001, "Learning rate policy gamma");
 DEFINE_double(lr_power, 0.75, "Learning rate policy power");
 
+void launch_FillOnes(int bs, int bw, float *vec);
+
+void launch_SoftmaxLossBackprop(const float *label, int num_labels, int batch_size, float *diff, int bw);
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Layer representations
@@ -935,7 +938,7 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMemcpyAsync(d_pfc2bias, &fc2.pbias[0],     sizeof(float) * fc2.pbias.size(),    cudaMemcpyHostToDevice));
     
     // Fill one-vector with ones
-    launch_FillOnes(d_onevec, context.m_batchSize, BW);
+    launch_FillOnes(context.m_batchSize, BW, d_onevec);
 
     printf("Preparing dataset\n");
     

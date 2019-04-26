@@ -14,6 +14,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <stdint.h>
 
 #define UBYTE_IMAGE_MAGIC 2051
 #define UBYTE_LABEL_MAGIC 2049
