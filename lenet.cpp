@@ -32,6 +32,7 @@
 
 #include <cublas_v2.h>
 #include <cudnn.h>
+#include <mpi.h>
 
 #include "readubyte.h"
 
@@ -41,7 +42,8 @@
 // Block width for CUDA kernels
 #define BW 128
 
-#ifdef USE_GFLAGS
+#ifdef U
+SE_GFLAGS
     #include <gflags/gflags.h>
 
     #ifndef _WIN32
@@ -710,8 +712,16 @@ struct TrainingContext
         // No need for convBackwardData because there are no more layers below
     }
 
-    void UpdateWeights(float learning_rate,
+    void UpdateLocalWeights(float learning_rate, float rho,
                        ConvBiasLayer& conv1, ConvBiasLayer& conv2,
+                       float *gpconv1, float *gpconv1bias,
+                       float *gpconv2, float *gpconv2bias,
+                       float *gpfc1, float *gpfc1bias,
+                       float *gpfc2, float *gpfc2bias,
+                       float *gdpconv1, float *gdpconv1bias,
+                       float *gdpconv2, float *gdpconv2bias,
+                       float *gdpfc1, float *gdpfc1bias,
+                       float *gdpfc2, float *gdpfc2bias,
                        float *pconv1, float *pconv1bias,
                        float *pconv2, float *pconv2bias,
                        float *pfc1, float *pfc1bias,
@@ -722,33 +732,141 @@ struct TrainingContext
                        float *gfc2, float *gfc2bias)
     {    
         float alpha = -learning_rate;
+	float rho_alpha = -rho*alpha;
+        float minus_rho_alpha = rho_alpha;
+        float minus_one = -1;
+
+        checkCudaErrors(cudaSetDevice(m_gpuid));
+
+        // Conv1
+        checkCudaErrors(cudaMemset(gdpconv1, 0, sizeof(float) * conv1.pconv.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
+				    &rho_alpha, pconv1, 1, gdpconv1, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
+				    &minus_rho_alpha, gpconv1, 1, gdpconv1, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
+				    &minus_one, gdpconv1, 1, pconv1, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
+                                    &alpha, gpconv1, 1, pconv1, 1));
+
+	// Conv1 bias
+        checkCudaErrors(cudaMemset(gdpconv1bias, 0, sizeof(float) * conv1.pbias.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
+				    &rho_alpha, pconv1bias, 1, gdpconv1bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
+				    &minus_rho_alpha, gpconv1bias, 1, gdpconv1bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
+				    &minus_one, gdpconv1bias, 1, pconv1bias, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
+                                    &alpha, gconv1bias, 1, pconv1bias, 1));
+
+        // Conv2
+        checkCudaErrors(cudaMemset(gdpconv2, 0, sizeof(float) * conv2.pconv.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
+				    &rho_alpha, pconv2, 1, gdpconv2, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
+				    &minus_rho_alpha, gpconv2, 1, gdpconv2, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
+				    &minus_one, gdpconv2, 1, pconv2, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
+                                    &alpha, gconv2, 1, pconv2, 1));
+        // Conv2 bias
+        checkCudaErrors(cudaMemset(gdpconv2bias, 0, sizeof(float) * conv2.pbias.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
+				    &rho_alpha, pconv2bias, 1, gdpconv2bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
+				    &minus_rho_alpha, gpconv2, 1, gdpconv2bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
+				    &minus_one, gdpconv2bias, 1, pconv2bias, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
+                                    &alpha, gconv2bias, 1, pconv2bias, 1));
+
+        // Fully connected 1
+        checkCudaErrors(cudaMemset(gfc1, 0, sizeof(float) * ref_fc1.pneurons.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
+				    &rho_alpha, pfc1, 1, gdpfc1, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
+				    &minus_rho_alpha, gpfc1, 1, gdpfc1, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
+				    &minus_one, gdpfc1, 1, pfc1, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
+                                    &alpha, gfc1, 1, pfc1, 1));
+
+        // Fully connected 1 bias
+        checkCudaErrors(cudaMemset(gdpfc1bias, 0, sizeof(float) * ref_fc1.pbias.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
+				    &rho_alpha, pfc1bias, 1, gdpfc1bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
+				    &minus_rho_alpha, gpfc1bias, 1, gdpfc1bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1_pbias.size()),
+				    &minus_one, gdpfc1bias, 1, pfc1bias, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
+                                    &alpha, gfc1bias, 1, pfc1bias, 1));
+
+        // Fully connected 2
+        checkCudaErrors(cudaMemset(gdpfc2, 0, sizeof(float) * ref_fc2.pneurons.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
+				    &rho_alpha, pfc2, 1, gdpfc2, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
+				    &minus_rho_alpha, gpfc2, 1, gdpfc2, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
+				    &minus_one, gdpfc2, 1, pfc2, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
+                                    &alpha, gfc2, 1, pfc2, 1));
+
+        // Fully connected 2 bias
+        checkCudaErrors(cudaMemset(gdpfc2bias, 0, sizeof(float) * ref_fc2.pbias.size());
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
+				    &rho_alpha, pfc2bias, 1, gdpfc2bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
+				    &minus_rho_alpha, gpfc2bias, 1, gdpfc2bias, 1));
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
+				    &minus_one, gdpfc2bias, 1, pfc2bias, 1));
+        checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
+                                    &alpha, gfc2bias, 1, pfc2bias, 1));
+    }
+
+
+    void UpdateGlobalWeights(float learning_rate,
+                       ConvBiasLayer& conv1, ConvBiasLayer& conv2,
+                       float *pconv1, float *pconv1bias,
+                       float *pconv2, float *pconv2bias,
+                       float *pfc1, float *pfc1bias,
+                       float *pfc2, float *pfc2bias,
+                       float *gconv1, float *gconv1bias,
+                       float *gconv2, float *gconv2bias,
+                       float *gfc1, float *gfc1bias,
+                       float *gfc2, float *gfc2bias)
+    {
+        float alpha = learning_rate;
 
         checkCudaErrors(cudaSetDevice(m_gpuid));
 
         // Conv1
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
-                                    &alpha, gconv1, 1, pconv1, 1));
+                                          &alpha, gconv1, 1, pconv1, 1));
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
-                                    &alpha, gconv1bias, 1, pconv1bias, 1));
-
+                                          &alpha, gconv1bias, 1, pconv1bias, 1));
+        
         // Conv2
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
-                                    &alpha, gconv2, 1, pconv2, 1));
+                                          &alpha, gconv2, 1, pconv2, 1));
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
-                                    &alpha, gconv2bias, 1, pconv2bias, 1));
-
-        // Fully connected 1
+                                          &alpha, gconv2bias, 1, pconv2bias, 1));
+        
+        // Fully connected
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
-                                    &alpha, gfc1, 1, pfc1, 1));
+         				  &alpha, gfc1, 1, pfc1, 1));
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
-                                    &alpha, gfc1bias, 1, pfc1bias, 1));
-
+                                          &alpha, gfc1bias, 1, pfc1bias, 1));
+        	
         // Fully connected 2
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
-                                    &alpha, gfc2, 1, pfc2, 1));
+                                          &alpha, gfc2, 1, pfc2, 1));
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
-                                    &alpha, gfc2bias, 1, pfc2bias, 1));
+                                          &alpha, gfc2bias, 1, pfc2bias, 1));
     }
+        
 };
 
 
@@ -757,43 +875,71 @@ struct TrainingContext
 
 int main(int argc, char **argv)
 {
+
+    //
+    //  set up MPI
+    //
+    int n_proc, rank;
+    MPI_Init( &argc, &argv );
+    MPI_Comm_size( MPI_COMM_WORLD, &n_proc )
+    MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+    int local_rank = -1;
+    {
+        MPI_Comm local_comm;
+        MPI_CALL(MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
+                                     &local_comm));
+
+        MPI_CALL(MPI_Comm_rank(local_comm, &local_rank));
+
+        MPI_CALL(MPI_Comm_free(&local_comm));
+    }
+
+    //cudaSetDevice(local_rank);
+    FLAGS_gpu = local_rank;
+
 #ifdef USE_GFLAGS
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 #endif
 
-    size_t width, height, channels = 1;
 
-    // Open input data
-    printf("Reading input data\n");
-    printf("width = %d, height = %d\n",width,height);
+    if(rank == 0){
+
+        size_t width, height, channels = 1;
+        // Open input data
+        printf("Reading input data\n");
+        printf("width = %d, height = %d\n",width,height);
+        
+        // Read dataset sizes
+        size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), nullptr, nullptr, width, height);
+        size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), nullptr, nullptr, width, height);
+        if (train_size == 0)
+            return 1;
+        printf("width = %d, height = %d\n",width,height);
+        
+        std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
+        std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
     
-    // Read dataset sizes
-    size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), nullptr, nullptr, width, height);
-    size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), nullptr, nullptr, width, height);
-    if (train_size == 0)
-        return 1;
-    printf("width = %d, height = %d\n",width,height);
+        // Read data from datasets
+        if (ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height) != train_size)
+            return 2;
+        if (ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height) != test_size)
+            return 3;
+        printf("width = %d, height = %d\n",width,height);
     
-    std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
-    std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
+        printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
+        printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
-    // Read data from datasets
-    if (ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height) != train_size)
-        return 2;
-    if (ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height) != test_size)
-        return 3;
-    printf("width = %d, height = %d\n",width,height);
-
-    printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
-    printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
-
-    // This code snippet saves a random image and its label
-    /*
-    std::random_device rd_image;
-    int random_image = rd_image() % train_size;
-    std::stringstream ss; ss << "image-" << (int)train_labels[random_image] << ".pgm";
-    SavePGMFile(&train_images[0] + random_image * width*height*channels, width, height, ss.str().c_str());
-    */
+	printf("Preparing dataset\n");
+    
+        // Normalize training set to be in [0,1]
+        std::vector<float> train_images_float(train_images.size()), train_labels_float(train_size);
+        for (size_t i = 0; i < train_size * channels * width * height; ++i)
+            train_images_float[i] = (float)train_images[i] / 255.0f;
+        
+        for (size_t i = 0; i < train_size; ++i)
+            train_labels_float[i] = (float)train_labels[i];
+    }
 
     // Choose GPU
     int num_gpus;
@@ -879,7 +1025,7 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMalloc(&d_fc2,     sizeof(float) * context.m_batchSize * fc2.outputs));
     checkCudaErrors(cudaMalloc(&d_fc2smax, sizeof(float) * context.m_batchSize * fc2.outputs));    
 
-    // Network parameters
+    //Local Network parameters
     float *d_pconv1, *d_pconv1bias, *d_pconv2, *d_pconv2bias;
     float *d_pfc1, *d_pfc1bias, *d_pfc2, *d_pfc2bias;
     
@@ -892,6 +1038,53 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMalloc(&d_pfc2,       sizeof(float) * fc2.pneurons.size()));
     checkCudaErrors(cudaMalloc(&d_pfc2bias,   sizeof(float) * fc2.pbias.size()));    
     
+    //Global Network parameters
+    //Device objects
+    float *d_gpconv1, *d_gpconv1bias, *d_gpconv2, *d_gpconv2bias;
+    float *d_gpfc1, *d_gpfc1bias, *d_gpfc2, *d_gpfc2bias;
+    
+    checkCudaErrors(cudaMalloc(&d_gpconv1,     sizeof(float) * conv1.pconv.size()));
+    checkCudaErrors(cudaMalloc(&d_gpconv1bias, sizeof(float) * conv1.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gpconv2,     sizeof(float) * conv2.pconv.size()));
+    checkCudaErrors(cudaMalloc(&d_gpconv2bias, sizeof(float) * conv2.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gpfc1,       sizeof(float) * fc1.pneurons.size()));
+    checkCudaErrors(cudaMalloc(&d_gpfc1bias,   sizeof(float) * fc1.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gpfc2,       sizeof(float) * fc2.pneurons.size()));
+    checkCudaErrors(cudaMalloc(&d_gpfc2bias,   sizeof(float) * fc2.pbias.size()));    
+    
+    //Host objects
+    float* h_gpconv1	 = malloc(sizeof(float) * conv1.pconv.size());
+    float* h_gpconv1bias = malloc(sizeof(float) * conv1.pbias.size());
+    float* h_gpconv2	 = malloc(sizeof(float) * conv2.pconv.size());
+    float* h_gpconv2bias = malloc(sizeof(float) * conv2.pbias.size());
+    float* h_gpfc1	 = malloc(sizeof(float) * fc1.pneurons.size());
+    float* h_gpfc1bias	 = malloc(sizeof(float) * fc1.pbias.size());
+    float* h_gpfc2	 = malloc(sizeof(float) * fc2.pneurons.size());
+    float* h_gpfc2bias	 = malloc(sizeof(float) * fc2.pbias.size());    
+
+    //Global - Local offset network parameters
+    float *d_gdpconv1, *d_gdpconv1bias, *d_gdpconv2, *d_gdpconv2bias;
+    float *d_gdpfc1, *d_gdpfc1bias, *d_gdpfc2, *d_gdpfc2bias;
+    
+    checkCudaErrors(cudaMalloc(&d_gdpconv1,     sizeof(float) * conv1.pconv.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpconv1bias, sizeof(float) * conv1.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpconv2,     sizeof(float) * conv2.pconv.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpconv2bias, sizeof(float) * conv2.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpfc1,       sizeof(float) * fc1.pneurons.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpfc1bias,   sizeof(float) * fc1.pbias.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpfc2,       sizeof(float) * fc2.pneurons.size()));
+    checkCudaErrors(cudaMalloc(&d_gdpfc2bias,   sizeof(float) * fc2.pbias.size()));    
+
+    //Host objects
+    float* h_gdpconv1		= malloc(sizeof(float) * conv1.pconv.size());
+    float* h_gdpconv1bias	= malloc(sizeof(float) * conv1.pbias.size());
+    float* h_gdpconv2		= malloc(sizeof(float) * conv2.pconv.size());
+    float* h_gdpconv2bias	= malloc(sizeof(float) * conv2.pbias.size());
+    float* h_gdpfc1	 	= malloc(sizeof(float) * fc1.pneurons.size());
+    float* h_gdpfc1bias	 	= malloc(sizeof(float) * fc1.pbias.size());
+    float* h_gdpfc2	 	= malloc(sizeof(float) * fc2.pneurons.size());
+    float* h_gdpfc2bias	 	= malloc(sizeof(float) * fc2.pbias.size());    
+
     // Network parameter gradients
     float *d_gconv1, *d_gconv1bias, *d_gconv2, *d_gconv2bias;
     float *d_gfc1, *d_gfc1bias, *d_gfc2, *d_gfc2bias;
@@ -927,7 +1120,7 @@ int main(int argc, char **argv)
 
     /////////////////////////////////////////////////////////////////////////////
 
-    // Copy initial network to device
+    // Copy initial local network to device
     checkCudaErrors(cudaMemcpyAsync(d_pconv1, &conv1.pconv[0],     sizeof(float) * conv1.pconv.size(),  cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpyAsync(d_pconv1bias, &conv1.pbias[0], sizeof(float) * conv1.pbias.size(),  cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpyAsync(d_pconv2, &conv2.pconv[0],     sizeof(float) * conv2.pconv.size(),  cudaMemcpyHostToDevice));
@@ -937,18 +1130,22 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMemcpyAsync(d_pfc2, &fc2.pneurons[0],      sizeof(float) * fc2.pneurons.size(), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpyAsync(d_pfc2bias, &fc2.pbias[0],     sizeof(float) * fc2.pbias.size(),    cudaMemcpyHostToDevice));
     
+    // Copy initial global network to device
+    checkCudaErrors(cudaMemcpyAsync(d_gpconv1, &conv1.pconv[0],     sizeof(float) * conv1.pconv.size(),  cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpconv1bias, &conv1.pbias[0], sizeof(float) * conv1.pbias.size(),  cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpconv2, &conv2.pconv[0],     sizeof(float) * conv2.pconv.size(),  cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpconv2bias, &conv2.pbias[0], sizeof(float) * conv2.pbias.size(),  cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpfc1, &fc1.pneurons[0],      sizeof(float) * fc1.pneurons.size(), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpfc1bias, &fc1.pbias[0],     sizeof(float) * fc1.pbias.size(),    cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpfc2, &fc2.pneurons[0],      sizeof(float) * fc2.pneurons.size(), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_gpfc2bias, &fc2.pbias[0],     sizeof(float) * fc2.pbias.size(),    cudaMemcpyHostToDevice));
+
     // Fill one-vector with ones
     launch_FillOnes(context.m_batchSize, BW, d_onevec);
 
-    printf("Preparing dataset\n");
-    
-    // Normalize training set to be in [0,1]
-    std::vector<float> train_images_float(train_images.size()), train_labels_float(train_size);
-    for (size_t i = 0; i < train_size * channels * width * height; ++i)
-        train_images_float[i] = (float)train_images[i] / 255.0f;
-    
-    for (size_t i = 0; i < train_size; ++i)
-        train_labels_float[i] = (float)train_labels[i];
+    // Objects to hold mini-batches
+    std::vector<float> train_images_mBatch_float(context.m_batchSize*train_images.size()/train_size), train_labels_mBatch_float(context.m_batchSize);
+    int num_mBatch = floor(train_size/context.m_batchSize);
 
     printf("Training...\n");
 
@@ -957,34 +1154,141 @@ int main(int argc, char **argv)
     auto t1 = std::chrono::high_resolution_clock::now();
     for (int iter = 0; iter < FLAGS_iterations; ++iter)
     {
-        // Train
-        int imageid = iter % (train_size / context.m_batchSize);
 
-        // Prepare current batch on device
-        checkCudaErrors(cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height*channels],
-                                        sizeof(float) * context.m_batchSize * channels * width * height, cudaMemcpyHostToDevice));
-        checkCudaErrors(cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize],
-                                        sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice));
-        
-        // Forward propagation
-        context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, 
-                                   d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
-                                   d_cudnn_workspace, d_onevec);
+	for(int i = 1; i <= rank; i++){
+	    rand_mbid = rand() % num_mBatch;
+	    // Distribute Training images for mini-batches
+	    if(rank == 0){
+	        MPI_Send(&train_images_float[rand_mbid * context.m_batchSize * width*height*channels], context.m_batchSize * channels * width * height,
+			MPI_FLOAT, i, COMM_XDATA, MPI_COMM_WORLD);
+	        MPI_Send(&train_labels_float[rand_mbid * context.m_batchSize], context.m_batchSize, MPI_FLOAT, i, COMM_XLABEL, MPI_COMM_WORLD);
+ 	    }
 
-        // Backward propagation
-        context.Backpropagation(conv1, pool1, conv2, pool2,
-                                d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
-                                d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
-                                d_gconv1, d_gconv1bias, d_dpool1, d_gconv2, d_gconv2bias, d_dconv2, d_dpool2, d_gfc1, d_gfc1bias, 
-                                d_dfc1, d_dfc1relu, d_gfc2, d_gfc2bias, d_dfc2, d_cudnn_workspace, d_onevec);
+	    if(rank == i){
+	    	MPI_Recv(train_images_mBatch_float, context.m_batchSize * channels * width * height, MPI_FLOAT, 0, COMM_XDATA, MPI_COMM_WORLD);
+		MPI_Recv(train_labels_mBatch_float, context.m_batchSize, MPI_FLOAT, 0, COMM_XLABEL, MPI_COMM_WORLD);
+	    }
+	}
 
-        // Compute learning rate
-        float learningRate = static_cast<float>(FLAGS_learning_rate * pow((1.0 + FLAGS_lr_gamma * iter), (-FLAGS_lr_power)));
+	//Forward and Backward propogation on all worker GPUs
+	if(rank != 0){
 
-        // Update weights
-        context.UpdateWeights(learningRate, conv1, conv2,
-                              d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
-                              d_gconv1, d_gconv1bias, d_gconv2, d_gconv2bias, d_gfc1, d_gfc1bias, d_gfc2, d_gfc2bias);
+            // Prepare current batch on device
+            checkCudaErrors(cudaMemcpyAsync(d_data, &train_images_mBatch_float,
+                                            sizeof(float) * context.m_batchSize * channels * width * height, cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpyAsync(d_labels, &train_labels_float,
+                                            sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice));
+            
+            // Forward propagation
+            context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, 
+                                       d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
+                                       d_cudnn_workspace, d_onevec);
+    
+            // Backward propagation
+            context.Backpropagation(conv1, pool1, conv2, pool2,
+                                    d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
+                                    d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
+                                    d_gconv1, d_gconv1bias, d_dpool1, d_gconv2, d_gconv2bias, d_dconv2, d_dpool2, d_gfc1, d_gfc1bias, 
+                                    d_dfc1, d_dfc1relu, d_gfc2, d_gfc2bias, d_dfc2, d_cudnn_workspace, d_onevec);
+        }
+
+	if(rank == 0){
+	    //Copy global weights from device
+            checkCudaErrors(cudaMemcpy(d_gpconv1,	h_gpconv1, sizeof(float) * conv1.pconv.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpconv1bias, 	h_gpconv1bias, sizeof(float) * conv1.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpconv2,	h_gpconv2, sizeof(float) * conv2.pconv.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpconv2bias, 	h_gpconv2bias, sizeof(float) * conv2.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpfc1,		h_gpfc1, sizeof(float) * fc1.pneurons.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpfc1bias,   	h_gpfc1bias, sizeof(float) * fc1.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpfc2,		h_gpfc2, sizeof(float) * fc2.pneurons.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gpfc2bias,   	h_gpfc2bias, sizeof(float) * fc2.pbias.size(), cudaMemcpyDeviceToHost));
+	}
+
+	//Broadcasting Global weights to everyone
+	MPI_Bcast(h_gpconv1,		conv1.pconv.size(), 	MPI_FLOAT, 0, COMM_GCONV1,	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv1bias,	conv1.pbias.size(), 	MPI_FLOAT, 0, COMM_GCONV1BIAS,	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv2,		conv2.pconv.size(), 	MPI_FLOAT, 0, COMM_GCONV2,	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv2bias,	conv2.pbias.size(), 	MPI_FLOAT, 0, COMM_GCONV2BIAS,	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc1,		fc1.pneurons.size(),	MPI_FLOAT, 0, COMM_GFC1NEURON, 	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc1bias,		fc1.pbias.size(),	MPI_FLOAT, 0, COMM_GFC1BIAS, 	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc2,		fc2.pneurons.size(), 	MPI_FLOAT, 0, COMM_GFC2NEURON, 	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc2bias,		fc2.pbias.size(), 	MPI_FLOAT, 0, COMM_GFC2BIAS, 	MPI_COMM_WORLD);
+
+	if(rank != 0){
+	    //Copy global weights from device
+            checkCudaErrors(cudaMemcpy(d_gpconv1,	h_gpconv1, sizeof(float) * conv1.pconv.size(),		cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpconv1bias, 	h_gpconv1bias, sizeof(float) * conv1.pbias.size(),	cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpconv2,	h_gpconv2, sizeof(float) * conv2.pconv.size(), 		cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpconv2bias, 	h_gpconv2bias, sizeof(float) * conv2.pbias.size(), 	cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpfc1,		h_gpfc1, sizeof(float) * fc1.pneurons.size(), 		cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpfc1bias,   	h_gpfc1bias, sizeof(float) * fc1.pbias.size(), 		cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpfc2,		h_gpfc2, sizeof(float) * fc2.pneurons.size(), 		cudaMemcpyHostToDevice));
+            checkCudaErrors(cudaMemcpy(d_gpfc2bias,   	h_gpfc2bias, sizeof(float) * fc2.pbias.size(), 		cudaMemcpyHostToDevice));	
+
+            // Compute learning rate
+            float learningRate = static_cast<float>(FLAGS_learning_rate * pow((1.0 + FLAGS_lr_gamma * iter), (-FLAGS_lr_power)));
+            //TODO: find rho
+            float rho = 10.0; 
+    
+            // Update weights
+            context.UpdateLocalWeights(learningRate, rho, conv1, conv2,
+                                  d_gpconv1, d_gpconv1bias, d_gpconv2, d_gpconv2bias, d_gpfc1, d_gpfc1bias, d_gpfc2, d_gpfc2bias,
+                                  d_gdpconv1, d_gdpconv1bias, d_gdpconv2, d_gdpconv2bias, d_gdpfc1, d_gdpfc1bias, d_gdpfc2, d_gdpfc2bias,
+                                  d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
+                                  d_gconv1, d_gconv1bias, d_gconv2, d_gconv2bias, d_gfc1, d_gfc1bias, d_gfc2, d_gfc2bias);
+
+	    //Copy rho(L-G) from device
+            checkCudaErrors(cudaMemcpy(d_gdpconv1,	h_gdpconv1, sizeof(float) * conv1.pconv.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpconv1bias, 	h_gdpconv1bias, sizeof(float) * conv1.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpconv2,	h_gdpconv2, sizeof(float) * conv2.pconv.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpconv2bias, 	h_gdpconv2bias, sizeof(float) * conv2.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpfc1,	h_gdpfc1, sizeof(float) * fc1.pneurons.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpfc1bias,   	h_gdpfc1bias, sizeof(float) * fc1.pbias.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpfc2,	h_gdpfc2, sizeof(float) * fc2.pneurons.size(), cudaMemcpyDeviceToHost));
+            checkCudaErrors(cudaMemcpy(d_gdpfc2bias,   	h_gdpfc2bias, sizeof(float) * fc2.pbias.size(), cudaMemcpyDeviceToHost));
+	}
+
+	for(int i = 1; i <= rank; i++){
+	    if(rank == i){
+		//Send rho(L-G) to root from every processor
+	    	MPI_Send(h_gdpconv1,	conv1.pconv.size(), 	MPI_FLOAT, 0, COMM_GDCONV1,	MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpconv1bias,conv1.pbias.size(), 	MPI_FLOAT, 0, COMM_GDCONV1BIAS,	MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpconv2,	conv2.pconv.size(), 	MPI_FLOAT, 0, COMM_GDCONV2,	MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpconv2bias,conv2.pbias.size(), 	MPI_FLOAT, 0, COMM_GDCONV2BIAS,	MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpfc1,	fc1.pneurons.size(),	MPI_FLOAT, 0, COMM_GDFC1NEURON, MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpfc1bias,	fc1.pbias.size(),	MPI_FLOAT, 0, COMM_GDFC1BIAS, 	MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpfc2,	fc2.pneurons.size(), 	MPI_FLOAT, 0, COMM_GDFC2NEURON, MPI_COMM_WORLD);
+	    	MPI_Send(h_gdpfc2bias,	fc2.pbias.size(), 	MPI_FLOAT, 0, COMM_GDFC2BIAS, 	MPI_COMM_WORLD);
+	    }
+	    if(rank == 0){
+		//Recv rho(L-G) from every processor
+	    	MPI_Recv(h_gdpconv1,	conv1.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV1,	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpconv1bias,conv1.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV1BIAS,	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpconv2,	conv2.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV2,	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpconv2bias,conv2.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV2BIAS,	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpfc1,	fc1.pneurons.size(),	MPI_FLOAT, i, COMM_GDFC1NEURON, MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpfc1bias,	fc1.pbias.size(),	MPI_FLOAT, i, COMM_GDFC1BIAS, 	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpfc2,	fc2.pneurons.size(), 	MPI_FLOAT, i, COMM_GDFC2NEURON, MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpfc2bias,	fc2.pbias.size(), 	MPI_FLOAT, i, COMM_GDFC2BIAS, 	MPI_COMM_WORLD);
+
+	        //Copy rho(L-G) from device
+                checkCudaErrors(cudaMemcpy(d_gdpconv1,		h_gdpconv1, sizeof(float) * conv1.pconv.size(), 	cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpconv1bias, 	h_gdpconv1bias, sizeof(float) * conv1.pbias.size(), 	cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpconv2,		h_gdpconv2, sizeof(float) * conv2.pconv.size(), 	cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpconv2bias, 	h_gdpconv2bias, sizeof(float) * conv2.pbias.size(), 	cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpfc1,		h_gdpfc1, sizeof(float) * fc1.pneurons.size(), 		cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpfc1bias,   	h_gdpfc1bias, sizeof(float) * fc1.pbias.size(), 	cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpfc2,		h_gdpfc2, sizeof(float) * fc2.pneurons.size(), 		cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(d_gdpfc2bias,   	h_gdpfc2bias, sizeof(float) * fc2.pbias.size(), 	cudaMemcpyHostToDevice));
+
+                // Update weights
+                context.UpdateGlobalWeights(learningRate, conv1, conv2,
+                                  d_gpconv1, d_gpconv1bias, d_gpconv2, d_gpconv2bias, d_gpfc1, d_gpfc1bias, d_gpfc2, d_gpfc2bias,
+                                  d_gdpconv1, d_gdpconv1bias, d_gdpconv2, d_gdpconv2bias, d_gdpfc1, d_gdpfc1bias, d_gdpfc2, d_gdpfc2bias);
+	    }
+
+	}
+
     }
     checkCudaErrors(cudaDeviceSynchronize());
     auto t2 = std::chrono::high_resolution_clock::now();
