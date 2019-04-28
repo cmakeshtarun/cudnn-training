@@ -58,13 +58,6 @@ SE_GFLAGS
     #define DEFINE_string(flag, default_value, description) const std::string FLAGS_##flag ((default_value))
 #endif
 
-/**
- * Computes ceil(x / y) for integral nonnegative values.
- */
-static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator)
-{
-    return (nominator + denominator - 1) / denominator;
-}
 
 /**
  * Saves a PGM grayscale image out of unsigned 8-bit data
@@ -139,6 +132,34 @@ DEFINE_double(lr_power, 0.75, "Learning rate policy power");
 void launch_FillOnes(int bs, int bw, float *vec);
 
 void launch_SoftmaxLossBackprop(const float *label, int num_labels, int batch_size, float *diff, int bw);
+
+// FLAGS for MPI communication
+// enum Flags{ COMM_XDATA, COMM_XLABEL, COMM_HEIGHT, COMM_WIDTH, COMM_TRAIN_SIZE, COMM_TRAIN_IMAGES_SIZE, 
+//		COMM_GCONV1, COMM_GCONV1BIAS, COMM_GCONV2, COMM_GCONV2BIAS, COMM_GFC1NEURON, COMM_GFC1BIAS, COMM_GFC2NEURON, COMM_GFC2BIAS,
+//		COMM_GDCONV1, COMM_GDCONV1BIAS, COMM_GDCONV2, COMM_GDCONV2BIAS, COMM_GDFC1NEURON, COMM_GDFC1BIAS, COMM_GDFC2NEURON, COMM_GDFC2BIAS
+//	};
+#define COMM_XDATA 		0
+#define COMM_XLABEL		1
+#define COMM_HEIGHT		2
+#define COMM_WIDTH		3
+#define COMM_TRAIN_SIZE		4
+#define COMM_TRAIN_IMAGES_SIZE	5
+#define COMM_GCONV1		6
+#define COMM_GCONV1BIAS		7
+#define COMM_GCONV2		8
+#define COMM_GCONV2BIAS		9
+#define COMM_GFC1NEURON		10
+#define COMM_GFC1BIAS		11
+#define COMM_GFC2NEURON		12
+#define COMM_GFC2BIAS		13
+#define COMM_GDCONV1		14
+#define COMM_GDCONV1BIAS	15
+#define COMM_GDCONV2		16
+#define COMM_GDCONV2BIAS	17
+#define COMM_GDFC1NEURON	18
+#define COMM_GDFC1BIAS		19
+#define COMM_GDFC2NEURON	20
+#define COMM_GDFC2BIAS		21
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Layer representations
@@ -739,7 +760,7 @@ struct TrainingContext
         checkCudaErrors(cudaSetDevice(m_gpuid));
 
         // Conv1
-        checkCudaErrors(cudaMemset(gdpconv1, 0, sizeof(float) * conv1.pconv.size());
+        checkCudaErrors(cudaMemset(gdpconv1, 0, sizeof(float) * conv1.pconv.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
 				    &rho_alpha, pconv1, 1, gdpconv1, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
@@ -750,7 +771,7 @@ struct TrainingContext
                                     &alpha, gpconv1, 1, pconv1, 1));
 
 	// Conv1 bias
-        checkCudaErrors(cudaMemset(gdpconv1bias, 0, sizeof(float) * conv1.pbias.size());
+        checkCudaErrors(cudaMemset(gdpconv1bias, 0, sizeof(float) * conv1.pbias.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
 				    &rho_alpha, pconv1bias, 1, gdpconv1bias, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
@@ -761,7 +782,7 @@ struct TrainingContext
                                     &alpha, gconv1bias, 1, pconv1bias, 1));
 
         // Conv2
-        checkCudaErrors(cudaMemset(gdpconv2, 0, sizeof(float) * conv2.pconv.size());
+        checkCudaErrors(cudaMemset(gdpconv2, 0, sizeof(float) * conv2.pconv.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
 				    &rho_alpha, pconv2, 1, gdpconv2, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
@@ -771,7 +792,7 @@ struct TrainingContext
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
                                     &alpha, gconv2, 1, pconv2, 1));
         // Conv2 bias
-        checkCudaErrors(cudaMemset(gdpconv2bias, 0, sizeof(float) * conv2.pbias.size());
+        checkCudaErrors(cudaMemset(gdpconv2bias, 0, sizeof(float) * conv2.pbias.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
 				    &rho_alpha, pconv2bias, 1, gdpconv2bias, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
@@ -782,7 +803,7 @@ struct TrainingContext
                                     &alpha, gconv2bias, 1, pconv2bias, 1));
 
         // Fully connected 1
-        checkCudaErrors(cudaMemset(gfc1, 0, sizeof(float) * ref_fc1.pneurons.size());
+        checkCudaErrors(cudaMemset(gfc1, 0, sizeof(float) * ref_fc1.pneurons.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
 				    &rho_alpha, pfc1, 1, gdpfc1, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
@@ -793,18 +814,18 @@ struct TrainingContext
                                     &alpha, gfc1, 1, pfc1, 1));
 
         // Fully connected 1 bias
-        checkCudaErrors(cudaMemset(gdpfc1bias, 0, sizeof(float) * ref_fc1.pbias.size());
+        checkCudaErrors(cudaMemset(gdpfc1bias, 0, sizeof(float) * ref_fc1.pbias.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
 				    &rho_alpha, pfc1bias, 1, gdpfc1bias, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
 				    &minus_rho_alpha, gpfc1bias, 1, gdpfc1bias, 1));
-	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1_pbias.size()),
+	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
 				    &minus_one, gdpfc1bias, 1, pfc1bias, 1));
         checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
                                     &alpha, gfc1bias, 1, pfc1bias, 1));
 
         // Fully connected 2
-        checkCudaErrors(cudaMemset(gdpfc2, 0, sizeof(float) * ref_fc2.pneurons.size());
+        checkCudaErrors(cudaMemset(gdpfc2, 0, sizeof(float) * ref_fc2.pneurons.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
 				    &rho_alpha, pfc2, 1, gdpfc2, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
@@ -815,7 +836,7 @@ struct TrainingContext
                                     &alpha, gfc2, 1, pfc2, 1));
 
         // Fully connected 2 bias
-        checkCudaErrors(cudaMemset(gdpfc2bias, 0, sizeof(float) * ref_fc2.pbias.size());
+        checkCudaErrors(cudaMemset(gdpfc2bias, 0, sizeof(float) * ref_fc2.pbias.size()));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
 				    &rho_alpha, pfc2bias, 1, gdpfc2bias, 1));
 	checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
@@ -881,45 +902,49 @@ int main(int argc, char **argv)
     //
     int n_proc, rank;
     MPI_Init( &argc, &argv );
-    MPI_Comm_size( MPI_COMM_WORLD, &n_proc )
+    MPI_Comm_size( MPI_COMM_WORLD, &n_proc );
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
 
     int local_rank = -1;
     {
         MPI_Comm local_comm;
-        MPI_CALL(MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
-                                     &local_comm));
+        MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
+                                     &local_comm);
 
-        MPI_CALL(MPI_Comm_rank(local_comm, &local_rank));
+        MPI_Comm_rank(local_comm, &local_rank);
 
-        MPI_CALL(MPI_Comm_free(&local_comm));
+        MPI_Comm_free(&local_comm);
     }
 
     //cudaSetDevice(local_rank);
-    FLAGS_gpu = local_rank;
+    //FLAGS_gpu = local_rank;
 
 #ifdef USE_GFLAGS
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 #endif
 
+    size_t width, height, channels = 1;
+    size_t train_size, test_size, train_images_size;
+    float *train_images_float, *train_labels_float;
+    std::vector<uint8_t> train_images, train_labels;
+    std::vector<uint8_t> test_images, test_labels;
 
     if(rank == 0){
 
-        size_t width, height, channels = 1;
         // Open input data
         printf("Reading input data\n");
-        printf("width = %d, height = %d\n",width,height);
         
         // Read dataset sizes
-        size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), nullptr, nullptr, width, height);
-        size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), nullptr, nullptr, width, height);
+        train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), nullptr, nullptr, width, height);
+        test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), nullptr, nullptr, width, height);
         if (train_size == 0)
-            return 1;
-        printf("width = %d, height = %d\n",width,height);
-        
-        std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
-        std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
-    
+            return 1;        
+
+    	train_images.resize(train_size * width * height * channels);
+	train_labels.resize(train_size);
+    	test_images.resize(test_size * width * height * channels);
+	test_labels.resize(test_size);
+
         // Read data from datasets
         if (ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height) != train_size)
             return 2;
@@ -930,16 +955,26 @@ int main(int argc, char **argv)
         printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
         printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
+	train_images_size = train_images.size();     
+    	train_images_float = (float*) malloc(sizeof(float)*train_images.size());
+	train_labels_float = (float*) malloc(sizeof(float)*train_size);
+
 	printf("Preparing dataset\n");
-    
         // Normalize training set to be in [0,1]
-        std::vector<float> train_images_float(train_images.size()), train_labels_float(train_size);
         for (size_t i = 0; i < train_size * channels * width * height; ++i)
             train_images_float[i] = (float)train_images[i] / 255.0f;
         
         for (size_t i = 0; i < train_size; ++i)
             train_labels_float[i] = (float)train_labels[i];
+
     }
+
+
+    //Bcast dataset parameters
+    MPI_Bcast(&height, 			1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&width,  			1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&train_size,  		1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&train_images_size,  	1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Choose GPU
     int num_gpus;
@@ -1053,14 +1088,14 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMalloc(&d_gpfc2bias,   sizeof(float) * fc2.pbias.size()));    
     
     //Host objects
-    float* h_gpconv1	 = malloc(sizeof(float) * conv1.pconv.size());
-    float* h_gpconv1bias = malloc(sizeof(float) * conv1.pbias.size());
-    float* h_gpconv2	 = malloc(sizeof(float) * conv2.pconv.size());
-    float* h_gpconv2bias = malloc(sizeof(float) * conv2.pbias.size());
-    float* h_gpfc1	 = malloc(sizeof(float) * fc1.pneurons.size());
-    float* h_gpfc1bias	 = malloc(sizeof(float) * fc1.pbias.size());
-    float* h_gpfc2	 = malloc(sizeof(float) * fc2.pneurons.size());
-    float* h_gpfc2bias	 = malloc(sizeof(float) * fc2.pbias.size());    
+    float* h_gpconv1	 = (float*)malloc(sizeof(float) * conv1.pconv.size());
+    float* h_gpconv1bias = (float*)malloc(sizeof(float) * conv1.pbias.size());
+    float* h_gpconv2	 = (float*)malloc(sizeof(float) * conv2.pconv.size());
+    float* h_gpconv2bias = (float*)malloc(sizeof(float) * conv2.pbias.size());
+    float* h_gpfc1	 = (float*)malloc(sizeof(float) * fc1.pneurons.size());
+    float* h_gpfc1bias	 = (float*)malloc(sizeof(float) * fc1.pbias.size());
+    float* h_gpfc2	 = (float*)malloc(sizeof(float) * fc2.pneurons.size());
+    float* h_gpfc2bias	 = (float*)malloc(sizeof(float) * fc2.pbias.size());    
 
     //Global - Local offset network parameters
     float *d_gdpconv1, *d_gdpconv1bias, *d_gdpconv2, *d_gdpconv2bias;
@@ -1076,14 +1111,14 @@ int main(int argc, char **argv)
     checkCudaErrors(cudaMalloc(&d_gdpfc2bias,   sizeof(float) * fc2.pbias.size()));    
 
     //Host objects
-    float* h_gdpconv1		= malloc(sizeof(float) * conv1.pconv.size());
-    float* h_gdpconv1bias	= malloc(sizeof(float) * conv1.pbias.size());
-    float* h_gdpconv2		= malloc(sizeof(float) * conv2.pconv.size());
-    float* h_gdpconv2bias	= malloc(sizeof(float) * conv2.pbias.size());
-    float* h_gdpfc1	 	= malloc(sizeof(float) * fc1.pneurons.size());
-    float* h_gdpfc1bias	 	= malloc(sizeof(float) * fc1.pbias.size());
-    float* h_gdpfc2	 	= malloc(sizeof(float) * fc2.pneurons.size());
-    float* h_gdpfc2bias	 	= malloc(sizeof(float) * fc2.pbias.size());    
+    float* h_gdpconv1		= (float*)malloc(sizeof(float) * conv1.pconv.size());
+    float* h_gdpconv1bias	= (float*)malloc(sizeof(float) * conv1.pbias.size());
+    float* h_gdpconv2		= (float*)malloc(sizeof(float) * conv2.pconv.size());
+    float* h_gdpconv2bias	= (float*)malloc(sizeof(float) * conv2.pbias.size());
+    float* h_gdpfc1	 	= (float*)malloc(sizeof(float) * fc1.pneurons.size());
+    float* h_gdpfc1bias	 	= (float*)malloc(sizeof(float) * fc1.pbias.size());
+    float* h_gdpfc2	 	= (float*)malloc(sizeof(float) * fc2.pneurons.size());
+    float* h_gdpfc2bias	 	= (float*)malloc(sizeof(float) * fc2.pbias.size());    
 
     // Network parameter gradients
     float *d_gconv1, *d_gconv1bias, *d_gconv2, *d_gconv2bias;
@@ -1144,7 +1179,8 @@ int main(int argc, char **argv)
     launch_FillOnes(context.m_batchSize, BW, d_onevec);
 
     // Objects to hold mini-batches
-    std::vector<float> train_images_mBatch_float(context.m_batchSize*train_images.size()/train_size), train_labels_mBatch_float(context.m_batchSize);
+    float*  train_images_mBatch_float = (float*) malloc(sizeof(float)*context.m_batchSize*train_images_size/train_size);
+    float*  train_labels_mBatch_float = (float*) malloc(sizeof(float)*context.m_batchSize);
     int num_mBatch = floor(train_size/context.m_batchSize);
 
     printf("Training...\n");
@@ -1156,7 +1192,7 @@ int main(int argc, char **argv)
     {
 
 	for(int i = 1; i <= rank; i++){
-	    rand_mbid = rand() % num_mBatch;
+	    int rand_mbid = rand() % num_mBatch;
 	    // Distribute Training images for mini-batches
 	    if(rank == 0){
 	        MPI_Send(&train_images_float[rand_mbid * context.m_batchSize * width*height*channels], context.m_batchSize * channels * width * height,
@@ -1165,8 +1201,8 @@ int main(int argc, char **argv)
  	    }
 
 	    if(rank == i){
-	    	MPI_Recv(train_images_mBatch_float, context.m_batchSize * channels * width * height, MPI_FLOAT, 0, COMM_XDATA, MPI_COMM_WORLD);
-		MPI_Recv(train_labels_mBatch_float, context.m_batchSize, MPI_FLOAT, 0, COMM_XLABEL, MPI_COMM_WORLD);
+	    	MPI_Recv(train_images_mBatch_float, context.m_batchSize * channels * width * height, MPI_FLOAT, 0, COMM_XDATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(train_labels_mBatch_float, context.m_batchSize, MPI_FLOAT, 0, COMM_XLABEL, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	    }
 	}
 
@@ -1205,15 +1241,20 @@ int main(int argc, char **argv)
 	}
 
 	//Broadcasting Global weights to everyone
-	MPI_Bcast(h_gpconv1,		conv1.pconv.size(), 	MPI_FLOAT, 0, COMM_GCONV1,	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpconv1bias,	conv1.pbias.size(), 	MPI_FLOAT, 0, COMM_GCONV1BIAS,	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpconv2,		conv2.pconv.size(), 	MPI_FLOAT, 0, COMM_GCONV2,	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpconv2bias,	conv2.pbias.size(), 	MPI_FLOAT, 0, COMM_GCONV2BIAS,	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpfc1,		fc1.pneurons.size(),	MPI_FLOAT, 0, COMM_GFC1NEURON, 	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpfc1bias,		fc1.pbias.size(),	MPI_FLOAT, 0, COMM_GFC1BIAS, 	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpfc2,		fc2.pneurons.size(), 	MPI_FLOAT, 0, COMM_GFC2NEURON, 	MPI_COMM_WORLD);
-	MPI_Bcast(h_gpfc2bias,		fc2.pbias.size(), 	MPI_FLOAT, 0, COMM_GFC2BIAS, 	MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv1,		conv1.pconv.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv1bias,	conv1.pbias.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv2,		conv2.pconv.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpconv2bias,	conv2.pbias.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc1,		fc1.pneurons.size(),	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc1bias,		fc1.pbias.size(),	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc2,		fc2.pneurons.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(h_gpfc2bias,		fc2.pbias.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
 
+        // Compute learning rate
+        float learningRate = static_cast<float>(FLAGS_learning_rate * pow((1.0 + FLAGS_lr_gamma * iter), (-FLAGS_lr_power)));
+        //TODO: find rho
+        float rho = 10.0; 
+    
 	if(rank != 0){
 	    //Copy global weights from device
             checkCudaErrors(cudaMemcpy(d_gpconv1,	h_gpconv1, sizeof(float) * conv1.pconv.size(),		cudaMemcpyHostToDevice));
@@ -1225,11 +1266,6 @@ int main(int argc, char **argv)
             checkCudaErrors(cudaMemcpy(d_gpfc2,		h_gpfc2, sizeof(float) * fc2.pneurons.size(), 		cudaMemcpyHostToDevice));
             checkCudaErrors(cudaMemcpy(d_gpfc2bias,   	h_gpfc2bias, sizeof(float) * fc2.pbias.size(), 		cudaMemcpyHostToDevice));	
 
-            // Compute learning rate
-            float learningRate = static_cast<float>(FLAGS_learning_rate * pow((1.0 + FLAGS_lr_gamma * iter), (-FLAGS_lr_power)));
-            //TODO: find rho
-            float rho = 10.0; 
-    
             // Update weights
             context.UpdateLocalWeights(learningRate, rho, conv1, conv2,
                                   d_gpconv1, d_gpconv1bias, d_gpconv2, d_gpconv2bias, d_gpfc1, d_gpfc1bias, d_gpfc2, d_gpfc2bias,
@@ -1262,14 +1298,14 @@ int main(int argc, char **argv)
 	    }
 	    if(rank == 0){
 		//Recv rho(L-G) from every processor
-	    	MPI_Recv(h_gdpconv1,	conv1.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV1,	MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpconv1bias,conv1.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV1BIAS,	MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpconv2,	conv2.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV2,	MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpconv2bias,conv2.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV2BIAS,	MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpfc1,	fc1.pneurons.size(),	MPI_FLOAT, i, COMM_GDFC1NEURON, MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpfc1bias,	fc1.pbias.size(),	MPI_FLOAT, i, COMM_GDFC1BIAS, 	MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpfc2,	fc2.pneurons.size(), 	MPI_FLOAT, i, COMM_GDFC2NEURON, MPI_COMM_WORLD);
-	    	MPI_Recv(h_gdpfc2bias,	fc2.pbias.size(), 	MPI_FLOAT, i, COMM_GDFC2BIAS, 	MPI_COMM_WORLD);
+	    	MPI_Recv(h_gdpconv1,	conv1.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV1,	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpconv1bias,conv1.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV1BIAS,	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpconv2,	conv2.pconv.size(), 	MPI_FLOAT, i, COMM_GDCONV2,	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpconv2bias,conv2.pbias.size(), 	MPI_FLOAT, i, COMM_GDCONV2BIAS,	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpfc1,	fc1.pneurons.size(),	MPI_FLOAT, i, COMM_GDFC1NEURON, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpfc1bias,	fc1.pbias.size(),	MPI_FLOAT, i, COMM_GDFC1BIAS, 	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpfc2,	fc2.pneurons.size(), 	MPI_FLOAT, i, COMM_GDFC2NEURON, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    	MPI_Recv(h_gdpfc2bias,	fc2.pbias.size(), 	MPI_FLOAT, i, COMM_GDFC2BIAS, 	MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	        //Copy rho(L-G) from device
                 checkCudaErrors(cudaMemcpy(d_gdpconv1,		h_gdpconv1, sizeof(float) * conv1.pconv.size(), 	cudaMemcpyHostToDevice));
