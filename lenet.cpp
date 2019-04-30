@@ -1190,6 +1190,7 @@ int main(int argc, char **argv)
     auto t1 = std::chrono::high_resolution_clock::now();
     for (int iter = 0; iter < FLAGS_iterations; ++iter)
     {
+	printf("In iteration %d\n",iter);
 
 	for(int i = 1; i <= rank; i++){
 	    int rand_mbid = rand() % num_mBatch;
@@ -1206,6 +1207,7 @@ int main(int argc, char **argv)
 	    }
 	}
 
+	printf("Rank:%d Iter:%d Forward and Backward propogation \n",rank, iter);
 	//Forward and Backward propogation on all worker GPUs
 	if(rank != 0){
 
@@ -1240,6 +1242,7 @@ int main(int argc, char **argv)
             checkCudaErrors(cudaMemcpy(d_gpfc2bias,   	h_gpfc2bias, sizeof(float) * fc2.pbias.size(), cudaMemcpyDeviceToHost));
 	}
 
+	printf("Iter:%d Broadcasting global weghts\n",iter);
 	//Broadcasting Global weights to everyone
 	MPI_Bcast(h_gpconv1,		conv1.pconv.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(h_gpconv1bias,	conv1.pbias.size(), 	MPI_FLOAT, 0, MPI_COMM_WORLD);
@@ -1255,6 +1258,7 @@ int main(int argc, char **argv)
         //TODO: find rho
         float rho = 10.0; 
     
+	printf("Iter:%d Update local weights \n",iter);
 	if(rank != 0){
 	    //Copy global weights from device
             checkCudaErrors(cudaMemcpy(d_gpconv1,	h_gpconv1, sizeof(float) * conv1.pconv.size(),		cudaMemcpyHostToDevice));
